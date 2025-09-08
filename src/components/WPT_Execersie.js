@@ -17,16 +17,14 @@ function measureText({ text, fontFamily, fontSize }) {
 }
 
 export default function WarpedTextEditor_Execersize() {
-
     const [textTypo, setTextTypo] = useState({
-        text: "Hello",
-        fontFamily: "Inter, system-ui, Arial",
+        text: "Hello this is my life.",
+        fontFamily: "Robert, system-ui, Arial",
         fontSize: 150,
     })
     const { width, height } = measureText(textTypo);
     const paddingX = 0;
     const paddingY = 0;
-
     const [pts, setPts] = useState({
         left: { x: 100, y: 200 },
         mid: { x: 100 + width / 2 + paddingX, y: 200 },
@@ -42,18 +40,14 @@ export default function WarpedTextEditor_Execersize() {
         b1: { x: 100 + width / 4, y: 200 + height + paddingY },
         b2: { x: 100 + (width * 3) / 4, y: 200 + height + paddingY },
     });
-
-
     const onDrag = (key, e) => {
         const np = { ...pts, [key]: { x: e.target.x(), y: e.target.y() } };
         const mirrorHandle = (dragKey, otherKey, midKey) => {
             const dx = np[dragKey].x - np[midKey].x;
             const dy = np[dragKey].y - np[midKey].y;
-
             const length = Math.sqrt(dx * dx + dy * dy) || 1;
             const dirX = dx / length;
             const dirY = dy / length;
-
             const dist = Math.sqrt(
                 (pts[otherKey].x - pts[midKey].x) ** 2 +
                 (pts[otherKey].y - pts[midKey].y) ** 2

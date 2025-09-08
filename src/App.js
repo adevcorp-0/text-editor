@@ -15,7 +15,7 @@ import WarpedTextEditor_Execersize from './components/WPT_Execersie';
 function App() {
   return (
     <Layout>
-      <WarppingText />
+      <WarpedTextEditor_Execersize />
     </Layout>
   );
 }

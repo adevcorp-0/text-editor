@@ -9,8 +9,9 @@ export default function WarpComponent({
     fill = "#111",
     top,
     bottom,
-    sliceCount = 160,
+    sliceCount,
     padding = 16,
+    overlap = 1, // ✅ new: extra pixels to overlap slices
 }) {
     const texRef = useRef(null);
     const imgSize = useRef({ w: 0, h: 0 });
@@ -26,21 +27,18 @@ export default function WarpComponent({
         const textW = Math.ceil(metrics.width);
         const textH = lineHeight;
 
-        // const w = textW;
-        // const h = textH;
-        const w = textW + padding * 2;
-        const h = textH + padding * 2;
+        const w = (textW) * 2;
+        const h = (textH) * 2;
 
         canvas.width = w;
         canvas.height = h;
 
-        ctx.font = `${fontSize}px ${fontFamily}`;
+        ctx.font = `${fontSize * 2}px ${fontFamily}`;
         ctx.fillStyle = fill;
         ctx.textBaseline = "middle";
 
         ctx.clearRect(0, 0, w, h);
-        ctx.fillText(text, padding, h / 2);
-        // ctx.fillText(text, 0, h / 2);
+        ctx.fillText(text, 0, h / 2);
 
         texRef.current = canvas;
         imgSize.current = { w, h };
@@ -53,50 +51,22 @@ export default function WarpComponent({
                 if (!img) return;
 
                 const { w: srcW, h: srcH } = imgSize.current;
-                const S = Math.max(2, sliceCount);
+                const S = Math.min(40000, Math.ceil(srcW / 2));
                 const sliceW = srcW / S;
 
                 ctx.save();
                 ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = "high";
 
                 for (let i = 0; i < S; i++) {
                     const t0 = i / S;
                     const t1 = (i + 1) / S;
 
-                    const top0 = piecewiseQuadPoint(
-                        top.p0,
-                        top.mid,
-                        top.p2,
-                        top.h1,
-                        top.h2,
-                        t0
-                    );
-                    const top1 = piecewiseQuadPoint(
-                        top.p0,
-                        top.mid,
-                        top.p2,
-                        top.h1,
-                        top.h2,
-                        t1
-                    );
-                    const bot0 = piecewiseQuadPoint(
-                        bottom.p0,
-                        bottom.mid,
-                        bottom.p2,
-                        bottom.h1,
-                        bottom.h2,
-                        t0
-                    );
-                    const bot1 = piecewiseQuadPoint(
-                        bottom.p0,
-                        bottom.mid,
-                        bottom.p2,
-                        bottom.h1,
-                        bottom.h2,
-                        t1
-                    );
+                    const top0 = piecewiseQuadPoint(top.p0, top.mid, top.p2, top.h1, top.h2, t0);
+                    const top1 = piecewiseQuadPoint(top.p0, top.mid, top.p2, top.h1, top.h2, t1);
+                    const bot0 = piecewiseQuadPoint(bottom.p0, bottom.mid, bottom.p2, bottom.h1, bottom.h2, t0);
+                    const bot1 = piecewiseQuadPoint(bottom.p0, bottom.mid, bottom.p2, bottom.h1, bottom.h2, t1);
 
-                    // vectors for affine approx
                     const uAvg = {
                         x: (top1.x - top0.x + bot1.x - bot0.x) * 0.5,
                         y: (top1.y - top0.y + bot1.y - bot0.y) * 0.5,
@@ -110,17 +80,21 @@ export default function WarpComponent({
                     const e = top0.x;
                     const f = top0.y;
 
+                    const sliceSrcX = i * sliceW;
+                    const sliceSrcW =
+                        i === S - 1 ? srcW - sliceSrcX : sliceW + overlap;
+
                     ctx.save();
                     ctx.setTransform(a, b, c, d, e, f);
                     ctx.drawImage(
                         img,
-                        i * sliceW,
+                        sliceSrcX,
                         0,
-                        sliceW,
+                        sliceSrcW,
                         srcH,
                         0,
                         0,
-                        sliceW,
+                        sliceSrcW,
                         srcH
                     );
                     ctx.restore();
