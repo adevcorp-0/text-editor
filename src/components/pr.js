@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useMemo, useRef } from "react";
 import { Shape } from "react-konva";
 import piecewiseQuadPoint from "../helpers/bezier";
 
@@ -20,9 +20,8 @@ export default function WarpComponent({
     const texRef = useRef(null);
     const imgSize = useRef({ w: 0, h: 0 });
 
-
     // build a canvas texture when props change
-    useEffect(() => {
+    useMemo(() => {
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("2d");
 
@@ -33,15 +32,16 @@ export default function WarpComponent({
         canvas.width = textW + padding * 2;
         canvas.height = textH + padding * 2;
 
-        ctx.font = `${fontSize}px ${fontFamily}`;
-        ctx.fillStyle = fill;
-        ctx.textBaseline = "middle";
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.fillText(text, padding, textH / 2 + padding);
+        const ctx2 = canvas.getContext("2d");
+        ctx2.font = `${fontSize}px ${fontFamily}`;
+        ctx2.fillStyle = fill;
+        ctx2.textBaseline = "middle";
+        ctx2.clearRect(0, 0, canvas.width, canvas.height);
+        ctx2.fillText(text, padding, textH / 2 + padding);
 
         texRef.current = canvas;
         imgSize.current = { w: canvas.width, h: canvas.height };
-    }, [text, fontFamily, fontSize, fill, padding]); // NO top/bottom
+    }, [text, fontFamily, fontSize, fill, padding]);
 
     return (
         <Shape

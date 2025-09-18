@@ -1,148 +1,126 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Stage, Layer, Line, Circle, Shape } from "react-konva";
-import  piecewiseQuadPoint  from "../helpers/bezier";
+import Konva from "konva";
+import { Stage, Layer, Line, Circle, Group, Rect } from "react-konva";
+import piecewiseQuadPoint from "../helpers/bezier";
+import WarpComponent from "./pr";
 
-
-
-function WarpedText({
-    text = "Hello warped world!",
-    fontFamily = "Inter, system-ui, Arial",
-    fontSize = 48,
-    fill = "#111",
-    top,
-    bottom,
-    sliceCount = 100,
-    padding = 0,
-}) {
-    const texRef = useRef(null);
-    const imgSize = useRef({ w: 0, h: 0 });
-
-    useEffect(() => {
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
-
-        const lineHeight = Math.round(fontSize);
-        ctx.font = `${fontSize}px ${fontFamily}`;
-        const metrics = ctx.measureText(text);
-        const textW = Math.ceil(metrics.width);
-        const textH = lineHeight;
-
-        const w = textW;
-        const h = textH;
-
-        canvas.width = w;
-        canvas.height = h;
-
-        ctx.font = `${fontSize}px ${fontFamily}`;
-        ctx.fillStyle = fill;
-        ctx.textBaseline = "middle";
-
-        ctx.clearRect(0, 0, w, h);
-        ctx.fillText(text, padding, h / 2);
-
-        texRef.current = canvas;
-        imgSize.current = { w, h };
-    }, [text, fontFamily, fontSize, fill, padding]);
-
-    return (
-        <Shape
-            sceneFunc={(ctx, shape) => {
-                const img = texRef.current;
-                if (!img) return;
-
-                const { w: srcW, h: srcH } = imgSize.current;
-                const S = Math.max(2, sliceCount);
-                const sliceW = srcW / S;
-
-                ctx.save();
-                ctx.imageSmoothingEnabled = true;
-
-                for (let i = 0; i < S; i++) {
-                    const t0 = i / S;
-                    const t1 = (i + 1) / S;
-
-                    const top0 = piecewiseQuadPoint(top.p0, top.mid, top.p2, top.h1, top.h2, t0);
-                    const top1 = piecewiseQuadPoint(top.p0, top.mid, top.p2, top.h1, top.h2, t1);
-                    const bot0 = piecewiseQuadPoint(bottom.p0, bottom.mid, bottom.p2, bottom.h1, bottom.h2, t0);
-                    const bot1 = piecewiseQuadPoint(bottom.p0, bottom.mid, bottom.p2, bottom.h1, bottom.h2, t1);
-
-                    const uAvg = { x: (top1.x - top0.x + bot1.x - bot0.x) * 0.5, y: (top1.y - top0.y + bot1.y - bot0.y) * 0.5 };
-                    const vLeft = { x: bot0.x - top0.x, y: bot0.y - top0.y };
-
-                    const a = uAvg.x / sliceW;
-                    const b = uAvg.y / sliceW;
-                    const c = vLeft.x / srcH;
-                    const d = vLeft.y / srcH;
-                    const e = top0.x;
-                    const f = top0.y;
-
-                    ctx.save();
-                    ctx.setTransform(a, b, c, d, e, f);
-                    ctx.drawImage(
-                        img,
-                        i * sliceW, 0,
-                        sliceW, srcH,
-                        0, 0,
-                        sliceW, srcH
-                    );
-                    ctx.restore();
-                }
-                ctx.restore();
-                ctx.fillStrokeShape(shape);
-            }}
-        />
-    );
+function measureText({ text, fontFamily, fontSize }) {
+    const dummy = new Konva.Text({ text, fontFamily, fontSize });
+    return { width: dummy.width(), height: dummy.height() };
 }
 
-export default function WarpedTextEditor() {
-    const [pts, setPts] = useState({
-        left: { x: 100, y: 200 },
-        mid: { x: 300, y: 200 },
-        right: { x: 500, y: 200 },
-        h1: { x: 200, y: 200 },
-        h2: { x: 400, y: 200 },
-
-        leftB: { x: 100, y: 320 },
-        midB: { x: 300, y: 320 },
-        rightB: { x: 500, y: 320 },
-        b1: { x: 200, y: 320 },
-        b2: { x: 400, y: 320 },
+export default function WarpedTextEditor_Exercise() {
+    const [textTypo, setTextTypo] = useState({
+        text: "Hello.",
+        fontFamily: "Robert, system-ui, Arial",
+        fontSize: 150,
     });
 
-    const keepCollinear = (handleKey, otherHandleKey, midKey, np) => {
-        const mid = np[midKey];
-        const handle = np[handleKey];
-        const other = np[otherHandleKey];
+    const [isEditing, setIsEditing] = useState(false);
+    const [inputValue, setInputValue] = useState("");
+    const [hasBeenEdited, setHasBeenEdited] = useState(false);
+    const inputRef = useRef(null);
 
-        const vx = other.x - mid.x;
-        const vy = other.y - mid.y;
-        const len2 = vx * vx + vy * vy || 1;
-        const t = ((handle.x - mid.x) * vx + (handle.y - mid.y) * vy) / len2;
-        np[handleKey] = { x: mid.x + t * vx, y: mid.y + t * vy };
-    };
+    const [groupPos, setGroupPos] = useState({ x: 100, y: 200 });
+    const { width, height } = useMemo(() => measureText(textTypo), [textTypo]);
+    const [pts, setPts] = useState({
+        left: { x: 0, y: 0 },
+        mid: { x: 0, y: 0 },
+        right: { x: 0, y: 0 },
+
+        h1: { x: 0, y: 0 },
+        h2: { x: 0, y: 0 },
+
+        leftB: { x: 0, y: 0 },
+        midB: { x: 0, y: 0 },
+        rightB: { x: 0, y: 0 },
+
+        b1: { x: 0, y: 0 },
+        b2: { x: 0, y: 0 },
+    });
+
+    useEffect(() => {
+        setPts({
+            left: { x: 0, y: 0 },
+            mid: { x: width / 2, y: 0 },
+            right: { x: width, y: 0 },
+
+            h1: { x: width / 4, y: 0 },
+            h2: { x: (width * 3) / 4, y: 0 },
+
+            leftB: { x: 0, y: height },
+            midB: { x: width / 2, y: height },
+            rightB: { x: width, y: height },
+
+            b1: { x: width / 4, y: height },
+            b2: { x: (width * 3) / 4, y: height },
+        });
+    }, [width, height]);
 
     const onDrag = (key, e) => {
         const np = { ...pts, [key]: { x: e.target.x(), y: e.target.y() } };
-        if (key === "mid") {
-            const dx = np.mid.x - pts.mid.x;
-            const dy = np.mid.y - pts.mid.y;
-            np.h1 = { x: pts.h1.x + dx, y: pts.h1.y + dy };
-            np.h2 = { x: pts.h2.x + dx, y: pts.h2.y + dy };
-        }
-        if (key === "midB") {
-            const dx = np.midB.x - pts.midB.x;
-            const dy = np.midB.y - pts.midB.y;
-            np.b1 = { x: pts.b1.x + dx, y: pts.b1.y + dy };
-            np.b2 = { x: pts.b2.x + dx, y: pts.b2.y + dy };
-        }
+        const applyMirror = (dragKey, otherKey, midKey) => {
+            const dx = np[dragKey].x - np[midKey].x;
+            const dy = np[dragKey].y - np[midKey].y;
+            const length = Math.hypot(dx, dy) || 1;
+            const dist = Math.hypot(pts[otherKey].x - pts[midKey].x, pts[otherKey].y - pts[midKey].y);
 
-        if (key === "h1") keepCollinear("h1", "h2", "mid", np);
-        if (key === "h2") keepCollinear("h2", "h1", "mid", np);
-        if (key === "b1") keepCollinear("b1", "b2", "midB", np);
-        if (key === "b2") keepCollinear("b2", "b1", "midB", np);
+            np[otherKey] = {
+                x: np[midKey].x - (dx / length) * dist,
+                y: np[midKey].y - (dy / length) * dist,
+            };
+        };
+
+        if (!hasBeenEdited) {
+            if (key === "mid") {
+                const dx = np.mid.x - pts.mid.x;
+                const dy = np.mid.y - pts.mid.y;
+                np.h1 = { x: pts.h1.x + dx, y: pts.h1.y + dy };
+                np.h2 = { x: pts.h2.x + dx, y: pts.h2.y + dy };
+            }
+            if (key === "midB") {
+                const dx = np.midB.x - pts.midB.x;
+                const dy = np.midB.y - pts.midB.y;
+                np.b1 = { x: pts.b1.x + dx, y: pts.b1.y + dy };
+                np.b2 = { x: pts.b2.x + dx, y: pts.b2.y + dy };
+            }
+            if (key === "h1") applyMirror("h1", "h2", "mid");
+            if (key === "h2") applyMirror("h2", "h1", "mid");
+            if (key === "b1") applyMirror("b1", "b2", "midB");
+            if (key === "b2") applyMirror("b2", "b1", "midB");
+        }
 
         setPts(np);
     };
+
+    const handleTextDoubleClick = (e) => {
+        e.cancelBubble = true;
+        setIsEditing(true);
+        setInputValue(textTypo.text);
+    };
+
+    const handleTextUpdate = () => {
+        if (inputValue.trim() !== "") {
+            setTextTypo((prev) => ({ ...prev, text: inputValue.trim() }));
+            setHasBeenEdited(true);
+        }
+        setIsEditing(false);
+    };
+
+    const cancelEditing = () => {
+        setIsEditing(false);
+        setInputValue(textTypo.text);
+    };
+
+    const handleInputKeyDown = (e) => {
+        if (e.key === "Enter") handleTextUpdate();
+        if (e.key === "Escape") cancelEditing();
+    };
+
+    const handleStageClick = (e) => {
+        if (isEditing && e.target === e.target.getStage()) handleTextUpdate();
+    };
+
     const DISP_SEG = 140;
     const topLinePts = useMemo(() => {
         const arr = [];
@@ -173,38 +151,143 @@ export default function WarpedTextEditor() {
         [pts]
     );
 
+    useEffect(() => {
+        if (isEditing && inputRef.current) {
+            inputRef.current.focus();
+            inputRef.current.select();
+        }
+    }, [isEditing]);
+
     return (
-        <Stage width={900} height={600} className="bg-white">
-            <Layer>
-                <WarpedText
-                    text="Hello World."
-                    fontFamily="Inter, system-ui, Arial"
-                    fontSize={100}
-                    fill="#000"
-                    top={top}
-                    bottom={bottom}
-                    sliceCount={1000}
+        <div style={{ position: "relative" }}>
+            <Stage width={735} height={735} className="bg-white" onClick={handleStageClick}>
+                <Layer>
+                    <Group
+                        x={groupPos.x}
+                        y={groupPos.y}
+                        draggable={!isEditing}
+                        onDragStart={(e) => {
+                            if (e.target !== e.target.getParent()) {
+                                e.cancelBubble = true;
+                                return false;
+                            }
+                        }}
+                    >
+                        <WarpComponent
+                            text={textTypo.text}
+                            fontFamily={textTypo.fontFamily}
+                            fontSize={textTypo.fontSize}
+                            fill="#111"
+                            top={top}
+                            bottom={bottom}
+                            sliceCount={180}
+                            draggable={false}
+                        />
+                        {!isEditing && !hasBeenEdited && (
+                            <Rect
+                                x={pts.left.x}
+                                y={pts.left.y - textTypo.fontSize * 0.5}
+                                width={pts.right.x - pts.left.x}
+                                height={pts.leftB.y - pts.left.y + textTypo.fontSize * 0.5}
+                                fill="transparent"
+                                onDblClick={handleTextDoubleClick}
+                                listening
+                            />
+                        )}
+                        {!isEditing && (
+                            <>
+                                {!hasBeenEdited ? (
+                                    <>
+                                        <Line points={topLinePts} stroke="#4ab3ff" strokeWidth={1} />
+                                        <Line points={bottomLinePts} stroke="#4ab3ff" strokeWidth={1} />
+                                        <Line points={[pts.left.x, pts.left.y, pts.leftB.x, pts.leftB.y]} stroke="#4ab3ff" />
+                                        <Line points={[pts.right.x, pts.right.y, pts.rightB.x, pts.rightB.y]} stroke="#4ab3ff" />
+                                        <Line points={[pts.h1.x, pts.h1.y, pts.mid.x, pts.mid.y, pts.h2.x, pts.h2.y]} stroke="#4ab3ff" />
+                                        <Line points={[pts.b1.x, pts.b1.y, pts.midB.x, pts.midB.y, pts.b2.x, pts.b2.y]} stroke="#4ab3ff" />
+                                        {Object.entries(pts).map(([k, p]) => (
+                                            <Circle
+                                                key={k}
+                                                x={p.x}
+                                                y={p.y}
+                                                radius={5}
+                                                fill="#fff"
+                                                stroke="#4ab3ff"
+                                                draggable
+                                                onMouseDown={(e) => {
+                                                    e.cancelBubble = true;
+                                                }}
+                                                onDragMove={(e) => onDrag(k, e)}
+                                            />
+                                        ))}
+                                    </>
+                                ) : (
+                                    <>
+                                        <Line
+                                            points={[
+                                                pts.left.x,
+                                                pts.left.y,
+                                                pts.right.x,
+                                                pts.right.y,
+                                                pts.rightB.x,
+                                                pts.rightB.y,
+                                                pts.leftB.x,
+                                                pts.leftB.y,
+                                                pts.left.x,
+                                                pts.left.y,
+                                            ]}
+                                            stroke="#4ab3ff"
+                                            closed
+                                        />
+                                        {["left", "right", "leftB", "rightB"].map((k) => (
+                                            <Circle
+                                                key={k}
+                                                x={pts[k].x}
+                                                y={pts[k].y}
+                                                radius={5}
+                                                fill="#fff"
+                                                stroke="#4ab3ff"
+                                                draggable={false}
+                                                listening={false}
+                                                onMouseDown={(e) => {
+                                                    e.cancelBubble = true;
+                                                }}
+                                            />
+                                        ))}
+                                    </>
+                                )}
+                            </>
+                        )}
+                    </Group>
+                </Layer>
+            </Stage>
+            {isEditing && (
+                <input
+                    ref={inputRef}
+                    type="text"
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyDown={handleInputKeyDown}
+                    onBlur={handleTextUpdate}
+                    style={{
+                        position: "absolute",
+                        left: groupPos.x + pts.left.x,
+                        top: groupPos.y + pts.left.y - textTypo.fontSize * 0.5,
+                        fontSize: textTypo.fontSize,
+                        fontFamily: textTypo.fontFamily,
+                        color: "#111",
+                        background: "transparent",
+                        border: "2px solid #4ab3ff",
+                        outline: "none",
+                        padding: 0,
+                        margin: 0,
+                        width: `${pts.right.x - pts.left.x}px`,
+                        height: `${textTypo.fontSize}px`,
+                        lineHeight: `${textTypo.fontSize}px`,
+                        verticalAlign: "top",
+                        zIndex: 1000,
+                    }}
                 />
-                <Line points={topLinePts} stroke="#4ab3ff" strokeWidth={1} />
-                <Line points={bottomLinePts} stroke="#4ab3ff" strokeWidth={1} />
-                <Line points={[pts.left.x, pts.left.y, pts.leftB.x, pts.leftB.y]} stroke="#4ab3ff" strokeWidth={1} />
-                <Line points={[pts.right.x, pts.right.y, pts.rightB.x, pts.rightB.y]} stroke="#4ab3ff" strokeWidth={1} />
-                <Line points={[pts.h1.x, pts.h1.y, pts.mid.x, pts.mid.y, pts.h2.x, pts.h2.y]} stroke="#4ab3ff" strokeWidth={1} />
-                <Line points={[pts.b1.x, pts.b1.y, pts.midB.x, pts.midB.y, pts.b2.x, pts.b2.y]} stroke="#4ab3ff" strokeWidth={1} />
-                {Object.entries(pts).map(([k, p]) => (
-                    <Circle
-                        key={k}
-                        x={p.x}
-                        y={p.y}
-                        radius={5}
-                        fill="#fff"
-                        stroke="#4ab3ff"
-                        strokeWidth={1}
-                        draggable
-                        onDragMove={(e) => onDrag(k, e)}
-                    />
-                ))}
-            </Layer>
-        </Stage>
+            )}
+        </div>
     );
 }

@@ -12,10 +12,14 @@ import WarpedTextSVG from './components/WarpedTextSVG';
 import WarpedText from './components/WarpedText';
 import WarppingText from './components/WarppingText';
 import WarpedTextEditor_Execersize from './components/WPT_Execersie';
+import ShapeScene from './components/ShapeScene';
+// import WarpedTextEditor_Exercise from './components/ppr';
+
 function App() {
   return (
     <Layout>
-      <WarpedTextEditor_Execersize />
+      {/* <ShapeScene /> */}
+      <WarpedTextEditor />
     </Layout>
   );
 }
